@@ -6,6 +6,7 @@ import logging
 from .base_tool import BaseTool
 from .add_tool import AddTool
 from .find_component_tool import FindComponentTool
+from .features_tool import FeaturesListTool, FeatureCallTool
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,10 @@ class ToolRegistry:
         
         # Register the find component tool
         self.register_tool(FindComponentTool())
+
+        # Register features tools
+        self.register_tool(FeaturesListTool())
+        self.register_tool(FeatureCallTool())
         
         # Add more tools here in the future:
         # self.register_tool(SubtractTool())

@@ -13,6 +13,8 @@ import logging
 import uvicorn
 from datetime import datetime
 from tools.tool_registry import tool_registry
+from features.feature_registry import feature_registry
+from controllers.hswpr_controller import controller as hswpr_controller
 
 # Configure logging
 logging.basicConfig(
@@ -100,11 +102,31 @@ def handle_tools_call(params: Dict[str, Any]) -> Dict[str, Any]:
         ]
     }
 
+def handle_features_list(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    features = feature_registry.list_features()
+    logger.info(f"📋 Listed {len(features)} available features")
+    return {"features": features}
+
+def handle_features_call(params: Dict[str, Any]) -> Dict[str, Any]:
+    name = params.get("name")
+    arguments = params.get("arguments", {})
+    logger.info(f"✨ Calling feature: {name} with params: {arguments}")
+    if not feature_registry.has_feature(name):
+        raise ValueError(f"Feature '{name}' not found")
+    result = feature_registry.get(name).execute(arguments)
+    return {
+        "content": [
+            {"type": "text", "text": str(result)}
+        ]
+    }
+
 # JSON-RPC method router
 JSONRPC_METHODS = {
     "initialize": handle_initialize,
     "tools/list": handle_tools_list,
-    "tools/call": handle_tools_call
+    "tools/call": handle_tools_call,
+    "features/list": handle_features_list,
+    "features/call": handle_features_call
 }
 
 # ============================================
@@ -202,6 +224,8 @@ async def health_check():
         "protocol": "JSON-RPC 2.0",
         "tools_count": tool_registry.get_tool_count(),
         "tools": [tool["name"] for tool in tool_registry.list_tools()],
+        "features_count": feature_registry.get_feature_count(),
+        "features": [feature["name"] for feature in feature_registry.list_features()],
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
@@ -218,7 +242,8 @@ async def root():
             "health": "GET /health",
             "docs": "GET /docs"
         },
-        "tools": [tool["name"] for tool in tool_registry.list_tools()]
+        "tools": [tool["name"] for tool in tool_registry.list_tools()],
+        "features": [feature["name"] for feature in feature_registry.list_features()]
     }
 
 # ============================================
