@@ -7,6 +7,9 @@ from .base_tool import BaseTool
 from .add_tool import AddTool
 from .find_component_tool import FindComponentTool
 from .features_tool import FeaturesListTool, FeatureCallTool
+from .splitter_file_parser_tool import SplitterFileParserTool
+from .code_understanding_tool import CodeUnderstandingTool
+from .process_locator_tool import ProcessLocatorTool
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,15 @@ class ToolRegistry:
         # Register features tools
         self.register_tool(FeaturesListTool())
         self.register_tool(FeatureCallTool())
-        
+        # Register the splitter file parser tool
+        self.register_tool(SplitterFileParserTool())
+        # Register code understanding tool
+        self.register_tool(CodeUnderstandingTool())
+        # Register process locator tool
+        self.register_tool(ProcessLocatorTool())
+        # Register fetch root path tool
+        from .fetch_root_path_tool import FetchRootPathTool
+        self.register_tool(FetchRootPathTool())
         # Add more tools here in the future:
         # self.register_tool(SubtractTool())
         # self.register_tool(MultiplyTool())

@@ -1,44 +1,44 @@
 from typing import Dict, Any
 from .base_feature import BaseFeature
 
+
 class FailsafeDocGenFeature(BaseFeature):
     name = "FailsafeDocGen"
-    description = "Failsafe document generation"
+    description = "Failsafe document generation workflow - returns execution plan for client LLM"
 
     def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        # Step 1: Check for failure word
-        failure_word = params.get("failure_word")
-        fw_name = params.get("fw_name")
-        
-        # Use fw_name as failure_word if failure_word is not provided but fw_name is
-        if not failure_word and fw_name:
-            failure_word = fw_name
-        
+        params = params or {}
+        failure_word = params.get("failure_word") or params.get("fw_name")
         if not failure_word or not isinstance(failure_word, str) or failure_word.strip() == "":
-            # Request failure word from client
             return {
                 "status": "input_required",
                 "request_type": "failure_word",
-                "message": "Please provide the failure word to proceed with failsafe document generation",
+                "message": "Please provide the failure word to proceed.",
                 "prompt": "Enter failure word:"
             }
-        
-        # Step 2: Validate and proceed with execution
-        failure_word = failure_word.strip()
-        
+
+        project_root = params.get("project_root")
+        if not project_root or not isinstance(project_root, str) or project_root.strip() == "":
+            return {
+                "status": "input_required",
+                "request_type": "project_root",
+                "message": "Project root path is required. Please call the 'fetch_root_path' tool to prompt the user for the absolute path to the project root folder.",
+                "prompt": "Call the 'fetch_root_path' tool and ask the user: Enter project root folder path:"
+            }
+
+        prompt = (
+            f"Step 1: Ensure the failure word is provided by the user.\n"
+            f"Step 2: Ensure the project root path is provided by the user.\n"
+            f"Step 3: Remove the prefix 'FW_' from the failure word if present, then use the search tool to recursively search all files (of any type) in all subfolders within the project root for:\n"
+            f"  - the normalized failure word as a substring\n"
+            f"  - related identifiers such as 'DemConf_DemEventParameter_<failure_word>' (where <failure_word> is the normalized failure word)\n"
+            f"Remember the list of files found for all these patterns.\n"
+            f"Step 4: Call the splitter file handler tool (splitter_file_parser) with the failure word and project root.\n"
+            f"Return the results of steps 3 and 4 to the user."
+        )
         return {
-            "status": "ok",
-            "failure_word": failure_word,
-            "message": f"Failsafe document generation executed successfully for failure word: {failure_word}",
-            "execution_flow": {
-                "step_1": f"Failure word '{failure_word}' validated",
-                "step_2": f"Failsafe document generation initiated for {failure_word}",
-                "step_3": f"Processing safety requirements for {failure_word}",
-                "step_4": f"Document generation completed for {failure_word}"
-            },
-            "next_actions": [
-                f"Generate safety requirements document for {failure_word}",
-                f"Create failure mode analysis for {failure_word}",
-                f"Generate test specifications for {failure_word}"
-            ]
+            "status": "plan_ready",
+            "failure_word": failure_word.strip(),
+            "project_root": project_root.strip(),
+            "prompt": prompt
         }
