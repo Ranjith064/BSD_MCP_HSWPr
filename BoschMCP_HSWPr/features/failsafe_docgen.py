@@ -17,28 +17,21 @@ class FailsafeDocGenFeature(BaseFeature):
                 "prompt": "Enter failure word:"
             }
 
-        project_root = params.get("project_root")
-        if not project_root or not isinstance(project_root, str) or project_root.strip() == "":
-            return {
-                "status": "input_required",
-                "request_type": "project_root",
-                "message": "Project root path is required. Please call the 'fetch_root_path' tool to prompt the user for the absolute path to the project root folder.",
-                "prompt": "Call the 'fetch_root_path' tool and ask the user: Enter project root folder path:"
-            }
-
+        # Step 1: Execute find_component tool with the failure word
+        # (Client LLM should call find_component and use its output)
         prompt = (
             f"Step 1: Ensure the failure word is provided by the user.\n"
-            f"Step 2: Ensure the project root path is provided by the user.\n"
-            f"Step 3: Remove the prefix 'FW_' from the failure word if present, then use the search tool to recursively search all files (of any type) in all subfolders within the project root for:\n"
+            f"Step 2: Call the 'find_component' tool with the failure word to get the component path.\n"
+            f"Step 3: Use the returned component path as the search root. Remove the prefix 'FW_' from the failure word if present, then use the search tool to recursively search all files (of any type) in all subfolders within the component path for:\n"
             f"  - the normalized failure word as a substring\n"
             f"  - related identifiers such as 'DemConf_DemEventParameter_<failure_word>' (where <failure_word> is the normalized failure word)\n"
             f"Remember the list of files found for all these patterns.\n"
-            f"Step 4: Call the splitter file handler tool (splitter_file_parser) with the failure word and project root.\n"
-            f"Return the results of steps 3 and 4 to the user."
+            f"Step 4: Call the splitter file handler tool (splitter_file_parser) with the failure word and component path.\n"
+            f"Step 5: For each relevant function or process name found in the search step, call the 'code_understanding' tool with the function name, failure word, and component path to extract code snippets and analyze the monitoring logic.\n"
+            f"Return the results of steps 3, 4, and 5 to the user."
         )
         return {
             "status": "plan_ready",
             "failure_word": failure_word.strip(),
-            "project_root": project_root.strip(),
             "prompt": prompt
         }

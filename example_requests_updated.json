@@ -1,0 +1,50 @@
+{
+  "tools": {
+    "fetch_root_path": {
+      "tool": "fetch_root_path",
+      "params": {}
+    },
+    "find_component": {
+      "tool": "find_component",
+      "params": {
+        "failure_word": "FW_StopLampRelayOnFail",
+        "project_root": "C:/Path/To/Project"
+      }
+    },
+    "process_locator": {
+      "tool": "process_locator",
+      "params": {
+        "failure_word": "FW_StopLampRelayOnFail",
+        "project_root": "C:/Path/To/Project",
+        "component_path": "C:/Path/To/Project/rb/as/core/hwp/hsw/rbwss"
+      }
+    },
+    "code_understanding": {
+      "tool": "code_understanding",
+      "params": {
+        "function_name": "Monitor_StopLampRelayOnFail",
+        "failure_word": "FW_StopLampRelayOnFail",
+        "component_path": "C:/Path/To/Project/rb/as/core/hwp/hsw/rbwss",
+        "max_snippets": 10
+      }
+    },
+    "splitter_file_parser": {
+      "tool": "splitter_file_parser",
+      "params": {
+        "failure_word": "FW_StopLampRelayOnFail",
+        "project_root": "C:/Path/To/Project"
+      }
+    }
+  },
+  "features": {
+    "FailsafeDocGen": {
+      "name": "FailsafeDocGen",
+      "failure_word": "FW_StopLampRelayOnFail",
+      "project_root": "C:/Path/To/Project"
+    },
+    "TestReportReviewer": {
+      "name": "TestReportReviewer",
+      "test_report_path": "C:/Path/To/Report/test_report.xml"
+    }
+  }
+}

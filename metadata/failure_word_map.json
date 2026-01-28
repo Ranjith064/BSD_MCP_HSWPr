@@ -1,0 +1,12 @@
+[
+  {
+    "failure_word": "FW_RBWssRLWrongSens",
+    "component_name": "RBWSS",
+    "component_path": "Project root folder/rb/as/core/hwp/hsw/rbwss"
+  },
+  {
+    "failure_word": "FW_StopLampRelayOffFail",
+    "component_name": "BLA",
+    "component_path": "C:/Sandbox/RB_MS_HSW_Dev/HWRef/rb/as/ms/ESP10E_MFA2/hswpr/src/RBBLA"
+  }
+]

@@ -34,7 +34,7 @@ class SplitterFileParserTool(BaseTool):
             "type": "object",
             "properties": {
                 "failure_word": {"type": "string", "description": "Failure word to search for"},
-                "project_root": {"type": "string", "description": "Root folder to search for splitter .xml files"}
+                "component_path": {"type": "string", "description": "Component path to search for splitter .xml files"}
             },
             "required": []
         }
@@ -179,15 +179,19 @@ class SplitterFileParserTool(BaseTool):
                 }
 
             failure_word = str(failure_word).strip()
-            project_root = params.get('project_root') if params else None
-            if not project_root or str(project_root).strip() == '':
-                # default to repository root if not provided
-                project_root = os.getcwd()
+            component_path = params.get('component_path') if params else None
+            if not component_path or str(component_path).strip() == '':
+                return {
+                    'status': 'input_required',
+                    'request_type': 'component_path',
+                    'message': 'Please provide the component path to search for splitter files.',
+                    'prompt': 'Enter the component path (folder containing relevant splitter .xml files):'
+                }
 
-            project_root = str(project_root)
-            logger.info(f"SplitterFileParser: searching for '{failure_word}' under {project_root}")
+            component_path = str(component_path)
+            logger.info(f"SplitterFileParser: searching for '{failure_word}' under {component_path}")
 
-            xml_files = self._find_xml_files(project_root)
+            xml_files = self._find_xml_files(component_path)
             logger.info(f"SplitterFileParser: found {len(xml_files)} xml files to scan")
 
             matches: List[Dict[str, Any]] = []
@@ -203,7 +207,7 @@ class SplitterFileParserTool(BaseTool):
                     'found': False,
                     'failure_word': failure_word,
                     'matches': [],
-                    'message': f"No splitter entries found for failure word '{failure_word}' under {project_root}",
+                    'message': f"No splitter entries found for failure word '{failure_word}' under {component_path}",
                     'timestamp': timestamp
                 }
 

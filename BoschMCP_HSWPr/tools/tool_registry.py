@@ -11,6 +11,7 @@ from .splitter_file_parser_tool import SplitterFileParserTool
 from .code_understanding_tool import CodeUnderstandingTool
 from .process_locator_tool import ProcessLocatorTool
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +42,9 @@ class ToolRegistry:
         # Register fetch root path tool
         from .fetch_root_path_tool import FetchRootPathTool
         self.register_tool(FetchRootPathTool())
+        # Register flow chart creator tool
+        from .flow_chart_creator_tool import FlowChartCreatorTool
+        self.register_tool(FlowChartCreatorTool())
         # Add more tools here in the future:
         # self.register_tool(SubtractTool())
         # self.register_tool(MultiplyTool())

@@ -12,26 +12,25 @@ logger = logging.getLogger(__name__)
 class FindComponentTool(BaseTool):
     """Tool for finding component names based on keywords"""
     
-    def _search_failure_word_in_txt(self, root_path: str, failure_word: str):
+    def _lookup_failure_word_metadata(self, failure_word: str):
         """
-        Search for the failure word in all .txt files under the root folder.
-        Returns the first matching file path, or None if not found.
+        Look up the failure word in metadata/failure_word_map.json and return component name and file path.
         """
         import os
-        matches = []
-        for dirpath, _, filenames in os.walk(root_path):
-            for fname in filenames:
-                if fname.lower().endswith('.txt'):
-                    fpath = os.path.join(dirpath, fname)
-                    try:
-                        with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
-                            for line in f:
-                                if failure_word in line:
-                                    matches.append(fpath)
-                                    break
-                    except Exception:
-                        continue
-        return matches[0] if matches else None
+        import json
+        metadata_path = os.path.join(os.path.dirname(__file__), '../../metadata/failure_word_map.json')
+        metadata_path = os.path.normpath(metadata_path)
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(f"Metadata file not found: {metadata_path}")
+        with open(metadata_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        for entry in data:
+            if entry.get('failure_word') == failure_word:
+                # Support both 'component_path' and 'file_path' keys
+                component_name = entry.get('component_name')
+                file_path = entry.get('component_path') or entry.get('file_path')
+                return component_name, file_path
+        return None, None
     
     def get_name(self) -> str:
         return "find_component"
@@ -45,50 +44,42 @@ class FindComponentTool(BaseTool):
             "properties": {
                 "failure_word": {
                     "type": "string",
-                    "description": "Failure word to search for in .txt files."
-                },
-                "project_root": {
-                    "type": "string",
-                    "description": "Absolute path to the root folder to search."
+                    "description": "Failure word to look up in metadata file."
                 }
             },
-            "required": ["failure_word", "project_root"]
+            "required": ["failure_word"]
         }
     
     def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Search for the failure word in .txt files and generate the component name from the path."""
+        """Look up the failure word in metadata and return component name and merged file path."""
         try:
             failure_word = params.get("failure_word")
             project_root = params.get("project_root")
             if not failure_word or not isinstance(failure_word, str) or failure_word.strip() == "":
                 raise ValueError("Parameter 'failure_word' is required and cannot be empty")
-            if not project_root or not isinstance(project_root, str) or project_root.strip() == "":
-                raise ValueError("Parameter 'project_root' is required and cannot be empty")
-
             failure_word = failure_word.strip()
-            project_root = project_root.strip()
-
-            # Step 1: Search for the failure word in all .txt files under the root folder
-            match_path = self._search_failure_word_in_txt(project_root, failure_word)
-            if not match_path:
+            component_name, component_path = self._lookup_failure_word_metadata(failure_word)
+            if not component_name or not component_path:
                 return {
                     "found": False,
                     "failure_word": failure_word,
                     "component_name": None,
-                    "message": f"Failure word '{failure_word}' not found in any .txt file under {project_root}.",
+                    "file_path": None,
+                    "message": f"Failure word '{failure_word}' not found in metadata file.",
                     "timestamp": datetime.utcnow().isoformat() + "Z"
                 }
-
-            # Step 2: Generate the component name based on the path (e.g., use the parent folder name)
+            # Merge project_root and component_path if project_root is provided
             import os
-            component_name = os.path.basename(os.path.dirname(match_path))
-
+            if project_root and isinstance(project_root, str) and project_root.strip():
+                merged_path = os.path.normpath(os.path.join(project_root.strip(), *component_path.replace('Project root folder', '').lstrip('/\\').split('/')))
+            else:
+                merged_path = component_path
             return {
                 "found": True,
                 "failure_word": failure_word,
                 "component_name": component_name,
-                "file_path": match_path,
-                "message": f"Component '{component_name}' found for failure word '{failure_word}' in file: {match_path}",
+                "file_path": merged_path,
+                "message": f"Component '{component_name}' found for failure word '{failure_word}' in file: {merged_path}",
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             }
         except Exception as e:

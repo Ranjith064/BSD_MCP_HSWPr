@@ -35,7 +35,7 @@ class CodeUnderstandingTool(BaseTool):
             "properties": {
                 "function_name": {"type": "string", "description": "Function or process name to search for"},
                 "failure_word": {"type": "string", "description": "Failure word being investigated (optional)"},
-                "project_root": {"type": "string", "description": "Root folder to search"},
+                "component_path": {"type": "string", "description": "Component path to search"},
                 "max_snippets": {"type": "integer", "description": "Max code snippets to return", "default": 10}
             },
             "required": ["function_name"]
@@ -97,6 +97,12 @@ class CodeUnderstandingTool(BaseTool):
 
     def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         function_name = params.get('function_name') if params else None
+        failure_word = params.get('failure_word') if params else None
+        component_path = params.get('component_path') if params else None
+        process_locator_result = params.get('process_locator_result') if params else None
+        flow_chart_result = params.get('flow_chart_result') if params else None
+        gen_root = params.get('gen_root') if params else None
+        
         if not function_name or str(function_name).strip() == '':
             return {
                 'status': 'input_required',
@@ -104,35 +110,91 @@ class CodeUnderstandingTool(BaseTool):
                 'message': 'Please provide the function or process name to analyze',
                 'prompt': 'Enter function/process name:'
             }
+        if not component_path:
+            component_path = os.getcwd()
+        component_path = str(component_path)
+        if not gen_root:
+            gen_root = os.path.join(component_path, 'Gen')
+        os.makedirs(gen_root, exist_ok=True)
 
-        function_name = str(function_name).strip()
-        failure_word = params.get('failure_word') if params else None
-        project_root = params.get('project_root') if params else None
-        max_snippets = params.get('max_snippets', 10) if params else 10
+        # Step 1: Ask client LLM to run the process_locator tool with component_path
+        if not process_locator_result:
+            return {
+                'status': 'tool_request',
+                'step': 1,
+                'next_tool': 'process_locator',
+                'next_tool_params': {
+                    'component_path': component_path,
+                    'failure_word': failure_word,
+                    'function_name': function_name
+                },
+                'message': 'Step 1: Client LLM should call process_locator tool to get the process hierarchy, file names, and paths.',
+                'instruction': 'Call process_locator and return the result in the next request as process_locator_result parameter.'
+            }
 
-        if not project_root:
-            project_root = os.getcwd()
-        project_root = str(project_root)
+        # Step 2: Fetch the process name, file name, and path from process_locator_result
+        monitoring_summary = process_locator_result.get('monitoring_summary', [])
+        if not monitoring_summary:
+            return {'status': 'error', 'message': 'No monitoring summary found in process_locator_result.'}
+        
+        # Extract monitoring function and file path
+        monitoring_function = monitoring_summary[0].get('monitoring_function')
+        parent_process = monitoring_summary[0].get('parent_process')
+        occurrence = monitoring_summary[0].get('occurrence', {})
+        monitoring_file = occurrence.get('file')
+        
+        if not monitoring_function or not monitoring_file:
+            return {'status': 'error', 'message': 'Could not extract monitoring function or file from process_locator_result.'}
 
-        logger.info(f"CodeUnderstanding: searching for '{function_name}' under {project_root}")
+        # Step 3: Ask LLM to call flow_chart_creator tool
+        if not flow_chart_result:
+            return {
+                'status': 'tool_request',
+                'step': 3,
+                'next_tool': 'flow_chart_creator',
+                'next_tool_params': {
+                    'function_name': monitoring_function,
+                    'file_path': monitoring_file,
+                    'gen_root': gen_root
+                },
+                'message': f'Step 3: Client LLM should call flow_chart_creator tool for function {monitoring_function}.',
+                'instruction': 'Call flow_chart_creator and return the result in the next request as flow_chart_result parameter.',
+                'context': {
+                    'monitoring_function': monitoring_function,
+                    'parent_process': parent_process,
+                    'monitoring_file': monitoring_file
+                }
+            }
 
-        snippets_collected: List[Dict[str, Any]] = []
-        for path in self._iter_text_files(project_root):
-            snippets = self._collect_snippets(path, function_name)
-            if snippets:
-                snippets_collected.extend(snippets)
-            if len(snippets_collected) >= max_snippets:
-                break
+        # Step 4: Read through the code to understand the function logic
+        code_content = None
+        try:
+            with io.open(monitoring_file, 'r', encoding='utf-8', errors='ignore') as f:
+                code_content = f.read()
+        except Exception as e:
+            return {'status': 'error', 'message': f'Failed to read monitoring file: {e}'}
 
-        snippets_collected = snippets_collected[:max_snippets]
-        prompt = self._build_prompt(function_name, failure_word, snippets_collected)
+        # Collect snippets for the monitoring function and failure word
+        snippets = self._collect_snippets(monitoring_file, monitoring_function, max_context=5)
+        if failure_word:
+            failure_snippets = self._collect_snippets(monitoring_file, failure_word, max_context=5)
+            snippets.extend(failure_snippets)
 
+        # Build analysis prompt
+        analysis_prompt = self._build_prompt(monitoring_function, failure_word, snippets)
+
+        # Step 5: Output the details of understanding
         return {
-            'found': len(snippets_collected) > 0,
+            'status': 'complete',
             'function_name': function_name,
             'failure_word': failure_word,
-            'snippets': snippets_collected,
-            'prompt': prompt,
-            'count': len(snippets_collected),
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'monitoring_function': monitoring_function,
+            'parent_process': parent_process,
+            'monitoring_file': monitoring_file,
+            'flow_chart_result': flow_chart_result,
+            'code_snippets': snippets,
+            'analysis_prompt': analysis_prompt,
+            'gen_root': gen_root,
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'message': 'Code understanding complete. Review the analysis_prompt and code_snippets for detailed understanding.'
         }

@@ -132,7 +132,8 @@ class ProcessLocatorTool(BaseTool):
             'type': 'object',
             'properties': {
                 'failure_word': {'type': 'string'},
-                'project_root': {'type': 'string'}
+                'project_root': {'type': 'string'},
+                'component_path': {'type': 'string'}
             },
             'required': ['failure_word']
         }
@@ -140,20 +141,21 @@ class ProcessLocatorTool(BaseTool):
     def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         failure_word = params.get('failure_word') if params else None
         project_root = params.get('project_root') if params else None
+        component_path = params.get('component_path') if params else None
         if not failure_word or str(failure_word).strip() == '':
             return {'status': 'input_required', 'request_type': 'failure_word', 'message': 'Please provide failure_word', 'prompt': 'Enter failure word:'}
-        if not project_root or str(project_root).strip() == '':
-            project_root = os.getcwd()
+        if not component_path or str(component_path).strip() == '':
+            return {'status': 'input_required', 'request_type': 'component_path', 'message': 'Please provide component_path', 'prompt': 'Enter component path:'}
         failure_word = str(failure_word).strip()
-        project_root = str(project_root)
+        component_path = str(component_path).strip()
         # Normalize failure word for prompts/reports: remove leading 'FW_' if present
         normalized_fw = failure_word
         if normalized_fw.upper().startswith('FW_'):
             normalized_fw = normalized_fw[3:]
 
-        logger.info(f"ProcessLocator: locating process for '{failure_word}' (normalized: '{normalized_fw}') under {project_root}")
+        logger.info(f"ProcessLocator: locating process for '{failure_word}' (normalized: '{normalized_fw}') under {component_path}")
 
-        proc_names = _find_proc_names(project_root)
+        proc_names = _find_proc_names(component_path)
         logger.info(f"Found {len(proc_names)} process candidates from .proc/.xml files")
 
         # Search occurrences for both original and normalized failure word forms
@@ -161,7 +163,7 @@ class ProcessLocatorTool(BaseTool):
         # collect occurrences for any of the search terms (only .c/.h files)
         occurrences: List[Dict[str, Any]] = []
         for term in search_terms:
-            occurrences.extend(_find_failure_occurrences(project_root, term))
+            occurrences.extend(_find_failure_occurrences(component_path, term))
 
         # de-duplicate occurrences by file+line
         seen = set()
@@ -195,7 +197,7 @@ class ProcessLocatorTool(BaseTool):
                         break
 
                     # check callers
-                    callers = _find_callers(project_root, current)
+                    callers = _find_callers(component_path, current)
                     if not callers:
                         break
                     # take first caller as heuristic
@@ -222,7 +224,7 @@ class ProcessLocatorTool(BaseTool):
                 # prefer identified process from .proc/.xml; otherwise use top-most caller as parent
                 parent_proc = t.get('process') or (t['trace'][-1]['function'] if t['trace'] else None)
                 # Collect direct callers of the monitoring function (step 3)
-                direct_callers_raw = _find_callers(project_root, monitoring_fn)
+                direct_callers_raw = _find_callers(component_path, monitoring_fn)
                 direct_callers: List[Dict[str, Any]] = []
                 confirmed_parent = None
                 for c in direct_callers_raw:
@@ -250,7 +252,7 @@ class ProcessLocatorTool(BaseTool):
                 monitoring_summary.append({'monitoring_function': None, 'parent_process': None, 'direct_callers': [], 'occurrence': t['occurrence']})
 
         # write report under Gen/<normalized_failure_word>/process_trace.md
-        gen_dir = os.path.join(project_root, 'Gen', normalized_fw)
+        gen_dir = os.path.join(component_path, 'Gen', normalized_fw)
         try:
             os.makedirs(gen_dir, exist_ok=True)
             report_path = os.path.join(gen_dir, 'process_trace.md')
@@ -262,12 +264,12 @@ class ProcessLocatorTool(BaseTool):
                 if monitoring_summary:
                     for s in monitoring_summary:
                         occ = s['occurrence']
-                        f.write(f"- Occurrence: {os.path.relpath(occ['file'], project_root)}:{occ['line_no']} -> Monitoring function: {s['monitoring_function']} | Parent process/task: {s['parent_process']} (source: {s.get('parent_process_source')})\n")
+                        f.write(f"- Occurrence: {os.path.relpath(occ['file'], component_path)}:{occ['line_no']} -> Monitoring function: {s['monitoring_function']} | Parent process/task: {s['parent_process']} (source: {s.get('parent_process_source')})\n")
                         # list direct callers (step 3)
                         if s.get('direct_callers'):
                             f.write(f"  Direct callers:\n")
                             for dc in s['direct_callers']:
-                                f.write(f"    - {os.path.relpath(dc['file'], project_root)}:{dc['line']} -> parent function: {dc.get('parent_function')}\n")
+                                f.write(f"    - {os.path.relpath(dc['file'], component_path)}:{dc['line']} -> parent function: {dc.get('parent_function')}\n")
                 else:
                     f.write("No occurrences found.\n")
 
